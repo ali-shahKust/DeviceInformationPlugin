@@ -1,3 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-  package="co.creativemind.device_information">
+    package="co.creativemind.device_information">
+
+    <!-- Required for reading device IMEI -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
+
 </manifest>

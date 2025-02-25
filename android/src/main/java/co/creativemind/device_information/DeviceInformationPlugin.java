@@ -1,4 +1,4 @@
-package co.creativemind.device_information;
+package android.src.main.java.co.creativemind.device_information;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
