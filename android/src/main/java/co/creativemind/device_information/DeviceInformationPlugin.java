@@ -24,19 +24,9 @@ import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
-import io.flutter.embedding.engine.plugins.FlutterPlugin;
-import io.flutter.plugin.common.MethodCall;
-import io.flutter.plugin.common.MethodChannel;
-import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
-import io.flutter.plugin.common.MethodChannel.Result;
-
 
 /** DeviceInformationPlugin */
 public class DeviceInformationPlugin implements FlutterPlugin, MethodCallHandler, ActivityAware {
-  /// The MethodChannel that will the communication between Flutter and native Android
-  ///
-  /// This local reference serves to register the plugin with the Flutter Engine and unregister it
-  /// when the Flutter Engine is detached from the Activity
   private MethodChannel channel;
   private Activity activity;
 
@@ -48,43 +38,56 @@ public class DeviceInformationPlugin implements FlutterPlugin, MethodCallHandler
 
   @Override
   public void onMethodCall(@NonNull MethodCall call, @NonNull Result result) {
-    if (call.method.equals("getPlatformVersion")) {
-      result.success("Android "+android.os.Build.VERSION.RELEASE);
-    }
-    else if(call.method.equals("getIMEINumber")){
-      String imeiNo = getIMEINo();
-      if(imeiNo!=null && imeiNo.equals(Manifest.permission.READ_PHONE_STATE)){
-        result.error(Manifest.permission.READ_PHONE_STATE,"Permission is not granted!",null);
-      }
-      else if(imeiNo!=null && imeiNo.length()>0){
-        result.success(imeiNo);
-      }
-    }
-    else if(call.method.equals("getAPILevel")){
-      result.success(Build.VERSION.SDK_INT);
-    }
-    else if(call.method.equals("getModel")){
-      result.success(Build.MODEL);
-    }
-    else if(call.method.equals("getManufacturer")){
-      result.success(Build.MANUFACTURER);
-    }
-    // Added in new release 0.0.2
-    else if(call.method.equals("getDevice")){
-      result.success(Build.DEVICE);
-    }
-    else if(call.method.equals("getProduct")){
-      result.success(Build.PRODUCT);
-    }
-    else if(call.method.equals("getCPUType")){
-      result.success(Build.CPU_ABI);
-    }
-    else if(call.method.equals("getHardware")){
-      result.success(Build.HARDWARE);
-    }
+    switch (call.method) {
+      case "getPlatformVersion":
+        result.success("Android " + Build.VERSION.RELEASE);
+        break;
 
-    else {
-      result.notImplemented();
+      case "getIMEINumber":
+        if (activity == null) {
+          result.error("NO_ACTIVITY", "Activity is not attached", null);
+          return;
+        }
+
+        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.READ_PHONE_STATE)
+                != PackageManager.PERMISSION_GRANTED) {
+          result.error("PERMISSION_DENIED", "READ_PHONE_STATE permission is required", null);
+        } else {
+          result.success(getIMEINo());
+        }
+        break;
+
+      case "getAPILevel":
+        result.success(Build.VERSION.SDK_INT);
+        break;
+
+      case "getModel":
+        result.success(Build.MODEL);
+        break;
+
+      case "getManufacturer":
+        result.success(Build.MANUFACTURER);
+        break;
+
+      case "getDevice":
+        result.success(Build.DEVICE);
+        break;
+
+      case "getProduct":
+        result.success(Build.PRODUCT);
+        break;
+
+      case "getCPUType":
+        result.success(Build.CPU_ABI);
+        break;
+
+      case "getHardware":
+        result.success(Build.HARDWARE);
+        break;
+
+      default:
+        result.notImplemented();
+        break;
     }
   }
 
@@ -95,25 +98,20 @@ public class DeviceInformationPlugin implements FlutterPlugin, MethodCallHandler
 
   @SuppressLint({"HardwareIds", "MissingPermission"})
   public String getIMEINo() {
-    String imeiNumber = "";
-    TelephonyManager telephonyManager = (TelephonyManager) activity.getSystemService(Context.TELEPHONY_SERVICE);
-    if (ContextCompat.checkSelfPermission(activity, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
-      return Manifest.permission.READ_PHONE_STATE;
-    }else{
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-        imeiNumber = getDeviceUniqueID();
+    if (activity == null) return "";
 
-      }else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        if (telephonyManager != null && telephonyManager.getImei() != null) {
-          imeiNumber = telephonyManager.getImei();
-        }
-      }else {
-        if (telephonyManager != null && telephonyManager.getDeviceId() != null) {
-          imeiNumber = telephonyManager.getDeviceId();
-        }
-      }
+    TelephonyManager telephonyManager =
+            (TelephonyManager) activity.getSystemService(Context.TELEPHONY_SERVICE);
+
+    if (telephonyManager == null) return "";
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+      return getDeviceUniqueID();
+    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      return telephonyManager.getImei() != null ? telephonyManager.getImei() : "";
+    } else {
+      return telephonyManager.getDeviceId() != null ? telephonyManager.getDeviceId() : "";
     }
-    return imeiNumber;
   }
 
   @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN_MR2)
@@ -123,13 +121,9 @@ public class DeviceInformationPlugin implements FlutterPlugin, MethodCallHandler
     try {
       MediaDrm wvDrm = new MediaDrm(wideVineUuid);
       byte[] wideVineId = wvDrm.getPropertyByteArray(MediaDrm.PROPERTY_DEVICE_UNIQUE_ID);
-      String stringWithSymbols = Arrays.toString(wideVineId);
-      String strWithoutBrackets = stringWithSymbols.replaceAll("\\[","");
-      String strWithoutBrackets1 = strWithoutBrackets.replaceAll("]","");
-      String strWithoutComma = strWithoutBrackets1.replaceAll(",","");
-      String strWithoutHyphen = strWithoutComma.replaceAll("-","");
-      String strWithoutSpace = strWithoutHyphen.replaceAll(" ","");
-      return strWithoutSpace.substring(0,15);
+      return Arrays.toString(wideVineId)
+              .replaceAll("[\\[\\], -]", "")  // Remove brackets, commas, hyphens, and spaces
+              .substring(0, 15);
     } catch (Exception e) {
       return "";
     }
@@ -142,16 +136,16 @@ public class DeviceInformationPlugin implements FlutterPlugin, MethodCallHandler
 
   @Override
   public void onDetachedFromActivityForConfigChanges() {
-
+    this.activity = null;
   }
 
   @Override
   public void onReattachedToActivityForConfigChanges(@NonNull ActivityPluginBinding binding) {
-
+    this.activity = binding.getActivity();
   }
 
   @Override
   public void onDetachedFromActivity() {
-   this.activity = null;
+    this.activity = null;
   }
 }
